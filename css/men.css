@@ -581,6 +581,14 @@ button:active {
   }
 }
 
+@media (max-width: 458px) {
+    
+    .btn-go-top {
+        margin-right: -16px;
+        margin-top: -30px;
+    }
+}
+
 .btn-go-top {
   position: absolute;
   right: 2rem;
