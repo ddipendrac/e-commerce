@@ -50,10 +50,15 @@ export default function SignUpForm() {
           const response = await axios.get<ApiResponse>(
             `/api/check-username-unique?username=${username}`
           );
-          
+          if (response.data.success) {
+            setUsernameMessage('Username is unique');
+          } else {
+            setUsernameMessage('Username is already taken');
+          }
         } catch (error) {
           const axiosError = error as AxiosError<ApiResponse>;
-          
+          setUsernameMessage('Error checking username');
+          toast.error('Username check failed');
         } finally {
           setIsCheckingUsername(false);
         }
@@ -66,26 +71,17 @@ export default function SignUpForm() {
     setIsSubmitting(true);
     try {
       const response = await axios.post<ApiResponse>('/api/sign-up', data);
-
-      
-
-      router.replace(`/verify/${username}`);
-
-      setIsSubmitting(false);
+      if (response.data.success) {
+        toast.success('Sign Up successful!');
+        router.replace(`/verify/${data.username}`);
+      } else {
+        toast.error('Sign Up failed, please try again.');
+      }
     } catch (error) {
-      console.error('Error during sign-up:', error);
-
       const axiosError = error as AxiosError<ApiResponse>;
-
-      // Default error message
-      let errorMessage = axiosError.response?.data;
-      ('There was a problem with your sign-up. Please try again.');
-
-      // toast('Sign Up Failed',{
-      //   description : errorMessage,
-      //   style: { backgroundColor: "red", color: "white" },
-      // });
-
+      console.error('Error during sign-up:', axiosError);
+      toast.error('There was a problem with your sign-up. Please try again.');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -95,9 +91,9 @@ export default function SignUpForm() {
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
         <div className="text-center">
           <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl mb-6">
-            Join True Feedback
+            Sign Up
           </h1>
-          <p className="mb-4">Sign up to start your anonymous adventure</p>
+          <p className="mb-4">Create your account and start shopping!</p>
         </div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -137,7 +133,9 @@ export default function SignUpForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <Input {...field} name="email" />
-                  <p className='text-muted text-gray-400 text-sm'>We will send you a verification code</p>
+                  <p className="text-muted text-gray-400 text-sm">
+                    We will send you a verification code
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -149,16 +147,22 @@ export default function SignUpForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Password</FormLabel>
-                  <Input type="password" {...field} name="password" />
+                  <Input
+                    type="password"
+                    {...field}
+                    name="password"
+                    minLength={8} // Enforcing password minimum length for security
+                  />
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className='w-full' disabled={isSubmitting}>
+
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Please wait
+                  Please wait...
                 </>
               ) : (
                 'Sign Up'
@@ -166,6 +170,7 @@ export default function SignUpForm() {
             </Button>
           </form>
         </Form>
+
         <div className="text-center mt-4">
           <p>
             Already a member?{' '}
