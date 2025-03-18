@@ -1,53 +1,53 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import dbConnect from "@/utils/db";
 import Product from "@/models/Product";
+import { productSchema } from "@/schemas/productSchema";
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
-  try {
-    await dbConnect();
-    const product = await Product.findById(params.id);
+  await dbConnect();
+  const { id } = params;
 
-    if (!product) {
+  // ✅ Validate MongoDB ObjectId format
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ error: "Invalid product ID" }, { status: 400 });
+  }
+
+  const product = await Product.findById(id);
+  if (!product) {
+    return NextResponse.json({ error: "Product not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(product);
+}
+
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
+  await dbConnect();
+  const { id } = params;
+
+  // ✅ Validate MongoDB ObjectId format
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ error: "Invalid product ID" }, { status: 400 });
+  }
+
+  try {
+    const existingProduct = await Product.findById(id);
+    if (!existingProduct) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    return NextResponse.json(product, { status: 200 });
-  } catch (error) {
-    console.error("Error fetching product:", error);
-    return NextResponse.json({ error: "Failed to fetch product" }, { status: 500 });
-  }
-}
-
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  try {
-    await dbConnect();
+    // ✅ Validate input data using Zod
     const body = await req.json();
+    const validatedData = productSchema.partial().parse(body); // Allows partial updates
 
-    const updatedProduct = await Product.findByIdAndUpdate(params.id, body, { new: true });
+    // ✅ Ensure Mongoose runs validators during update
+    const updatedProduct = await Product.findByIdAndUpdate(id, validatedData, {
+      new: true,
+      runValidators: true,
+    });
 
-    if (!updatedProduct) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ message: "Product updated successfully", product: updatedProduct }, { status: 200 });
+    return NextResponse.json(updatedProduct);
   } catch (error) {
-    console.error("Error updating product:", error);
-    return NextResponse.json({ error: "Failed to update product" }, { status: 500 });
-  }
-}
-
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  try {
-    await dbConnect();
-    const deletedProduct = await Product.findByIdAndDelete(params.id);
-
-    if (!deletedProduct) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ message: "Product deleted successfully" }, { status: 200 });
-  } catch (error) {
-    console.error("Error deleting product:", error);
-    return NextResponse.json({ error: "Failed to delete product" }, { status: 500 });
+    return NextResponse.json({ error: (error as any).message }, { status: 400 });
   }
 }

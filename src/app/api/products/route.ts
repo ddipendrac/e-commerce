@@ -1,61 +1,67 @@
-import { NextApiRequest, NextApiResponse } from "next";
-import { productSchema } from "@/schemas/productSchema"; // Assuming the schema is here
-import { MongoClient } from "mongodb"; // You can also use Mongoose if preferred
+import { NextResponse } from "next/server";
+import dbConnect from "@/utils/db";
+import Product from "@/models/Product";
+import { z } from "zod";
 
-const client = new MongoClient(process.env.MONGODB_URI as string); // MongoDB URI from .env
+// MongoDB ObjectId validation regex
+const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method === "POST") {
-    try {
-      // Validate request body against the productSchema
-      const validatedData = productSchema.parse(req.body); // This will throw an error if validation fails
+const productSchema = z.object({
+  name: z.string().min(3),
+  description: z.string().min(10),
+  price: z.number().positive(),
+  category: z.string().regex(objectIdRegex, "Invalid category ID format"),
+  stock: z.number().int().nonnegative(),
+  imageUrl: z.string().url(),
+});
 
-      // Connect to MongoDB
-      await client.connect();
-      const db = client.db("ecommerce"); // Use your database name here
-      const productsCollection = db.collection("products"); // Collection name
+export async function POST(req: Request) {
+  try {
+    await dbConnect();
+  } catch (error) {
+    return NextResponse.json({ success: false, error: "Database connection failed" }, { status: 500 });
+  }
 
-      // Create product object
-      const newProduct = {
-        name: validatedData.name,
-        description: validatedData.description,
-        price: validatedData.price,
-        image: validatedData.image,
-        category: validatedData.category,
-        stock: validatedData.stock,
-        rating: validatedData.rating,
-        createdAt: new Date(),
-      };
+  let body;
+  try {
+    body = await req.json();
+  } catch (error) {
+    return NextResponse.json({ success: false, error: "Invalid JSON format" }, { status: 400 });
+  }
 
-      // Insert new product into the database
-      const result = await productsCollection.insertOne(newProduct);
-
-      // Return the created product
-      return res.status(201).json({
-        message: "Product created successfully",
-        product: await productsCollection.findOne({ _id: result.insertedId }), // The inserted product
-      });
-    } catch (error) {
-      console.error("Error:", error);
-
-      // If validation failed
-      if (error ) {
-        return res.status(400).json({
-          message: "Invalid product data",
-          error: (error as Error).message,
-        });
-      }
-
-      // For any other errors
-      return res.status(500).json({
-        message: "Failed to add product",
-        error: (error as Error).message,
-      });
-    } finally {
-      // Close the DB connection
-      await client.close();
+  try {
+    const validatedData = productSchema.parse(body);
+    const newProduct = await Product.create(validatedData);
+    return NextResponse.json({ success: true, product: newProduct }, { status: 201 });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ success: false, error: error.errors }, { status: 400 });
     }
-  } else {
-    return res.status(405).json({ message: "Method Not Allowed" });
+
+    if ((error as any).name === "ValidationError") {
+      return NextResponse.json({ success: false, error: (error as Error).message }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: false, error: "An unknown error occurred" }, { status: 500 });
+  }
+}
+
+export async function GET(req: Request) {
+  try {
+    await dbConnect();
+  } catch (error) {
+    return NextResponse.json({ success: false, error: "Database connection failed" }, { status: 500 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const page = Number(searchParams.get("page")) || 1;
+  const limit = Number(searchParams.get("limit")) || 10;
+  const skip = (page - 1) * limit;
+
+  try {
+    const products = await Product.find().skip(skip).limit(limit).sort({ createdAt: -1 });
+    return NextResponse.json({ success: true, products, page, limit });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: "Failed to fetch products" }, { status: 500 });
   }
 }

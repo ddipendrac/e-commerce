@@ -4,16 +4,22 @@ import { z } from "zod";
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
 export const productSchema = z.object({
-  name: z.string().min(3).max(255),
-  description: z.string().min(3).max(255),
+  name: z.string().min(3, "Name must be at least 3 characters").max(255),
+  description: z.string().min(3, "Description must be at least 3 characters").max(255),
   price: z
-    .union([
-      z.string().refine(val => !isNaN(Number(val)), "Price must be a number").transform(val => Number(val)),
-      z.number().refine(val => !isNaN(val), "Price must be a valid number")
-    ])
-    .refine(price => price > 0, { message: "Price must be greater than 0" }),
+    .string()
+    .transform((val) => Number(val))
+    .pipe(z.number().positive("Price must be greater than 0")),
   image: z.string().url("Invalid image URL"),
-  category: z.string().regex(objectIdRegex, "Invalid category ID format"),  // Validate ObjectId format
-  stock: z.number().min(0).nonnegative("Stock cannot be negative"),
-  rating: z.number().min(0).max(5).default(0),
+  category: z
+    .string()
+    .regex(objectIdRegex, "Invalid category ID format")
+    .optional(), // Now it's optional
+  stock: z.number().int().min(0, "Stock cannot be negative"),
+  rating: z
+    .number()
+    .min(0)
+    .max(5)
+    .transform((val) => Math.round(val * 10) / 10) // Rounds to 1 decimal place
+    .default(0),
 });

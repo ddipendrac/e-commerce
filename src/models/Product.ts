@@ -4,8 +4,8 @@ export interface IProduct extends Document {
   name: string;
   description: string;
   price: number;
-  image: string;
-  category: mongoose.Types.ObjectId;
+  imageUrl: string; // Renamed to match Zod schema
+  category?: mongoose.Types.ObjectId; // Made optional to match Zod
   stock: number;
   rating: number;
   createdAt: Date;
@@ -26,26 +26,28 @@ const ProductSchema = new Schema<IProduct>(
       type: Number, 
       required: true 
     },
-    image: { 
+    imageUrl: {  // ✅ Renamed from 'image' to 'imageUrl'
       type: String, 
       required: true 
     },
     category: { 
       type: Schema.Types.ObjectId, 
       ref: "Category", 
-      required: true 
+      required: false // ✅ Now optional, matching Zod
     },
     stock: { 
       type: Number, 
-      default: 0 
+      default: 0,
+      min: 0 // ✅ Prevents negative stock values
     },
     rating: { 
       type: Number, 
-      default: 0 
+      default: 0,
+      min: 0, // ✅ Prevents negative ratings
+      max: 5  // ✅ Ensures rating stays within 0-5
     },
   },
-  { timestamps: true }  // This will automatically create 'createdAt' and 'updatedAt' fields
+  { timestamps: true }  // ✅ Automatically adds 'createdAt' and 'updatedAt'
 );
 
-// Ensure you are using an existing category model for the 'ref' to work
 export default mongoose.models.Product || mongoose.model<IProduct>("Product", ProductSchema);
